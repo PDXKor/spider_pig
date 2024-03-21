@@ -6,7 +6,7 @@ import time
 import logging
 import dal
 
-DB_RECREATE = True
+DB_RECREATE = False
 DEV_LOG = False
 
 if DEV_LOG:
@@ -56,7 +56,8 @@ def log_telemetry(loop_counter):
     # time each loop to make sure we can hit <1/60th a second
     start_time = time.perf_counter()
     
-    # you need this to freeze buffer for telemetry
+    # you need this to freeze buffer for telemetry0
+
     ir.freeze_var_buffer_latest()
     t = ir['SessionTime'] 
     
@@ -112,7 +113,8 @@ def log_telemetry(loop_counter):
         # get info on drivers
         dal.Driver.delete(state.init_datetime)
         for d in ir['DriverInfo']['Drivers']:
-            driver = dal.Driver(state.init_datetime,**d)
+            driver_data = dal.Driver.set_data(d)
+            driver = dal.Driver(state.init_datetime,**driver_data)
             driver.insert()
             log(driver)
         
@@ -120,6 +122,10 @@ def log_telemetry(loop_counter):
         # TODO add
         
         # get LapTiming
+        lap_timing = dal.LapTiming.set_data(d)
+        dal.LapTiming(state.init_datetime, **lap_timing).insert()
+        
+        '''
         lap_timing = dal.LapTiming(
             InitDateTime = state.init_datetime,
             Lap=ir["Lap"],
@@ -151,6 +157,7 @@ def log_telemetry(loop_counter):
             LapLastNLapTime=ir["LapLastNLapTime"]
         )
         lap_timing.insert()
+        '''
         
         # get TireData
         # Manually creating an instance of Tires
@@ -234,10 +241,13 @@ def log_telemetry(loop_counter):
         TrackTempCrew=ir["TrackTempCrew"],
     )
     
-    #for field_name, field_value in asdict(racing_telemetry_data).items():
-        #print(f"{field_name}: {field_value}")
+    #lap_timing = dal.LapTiming.set_data(d)
+    #dal.LapTiming(state.init_datetime, **lap_timing).insert()
+    race_telem = dal.RacingTelemetryData.set_data(ir)
+    dal.LapTiming(state.init_datetime, **race_telem)
+
     log(racing_telemetry_data)
-    racing_telemetry_data.insert()
+    #racing_telemetry_data.insert()
     
     # check loop performance
     end_time = time.perf_counter()

@@ -113,6 +113,23 @@ class DCExtender:
         # TODO add doc string
         return tuple(getattr(self, field.name) for field in fields(self))
     
+    @classmethod
+    def fields(self):
+        return [field.name for field in fields(self)]
+    
+    @classmethod
+    def set_data(self, data):
+        return_data = {}
+        field_names = self.fields()
+        for field in field_names:
+            if field != 'InitDateTime':
+                if field not in data:
+                    return_data[field] = None
+                else:
+                    return_data[field] = data[field]
+        return return_data
+        
+        
 @dataclass
 class WeekendInfo(DCExtender):
     InitDateTime: str
@@ -251,10 +268,10 @@ class Driver(DCExtender):
     CarNumberDesignStr: str
     CarSponsor_1: int
     CarSponsor_2: int
-    #ClubName: str
-    #ClubID: int
-    #DivisionName: str
-    #DivisionID: int
+    ClubName: str
+    ClubID: int
+    DivisionName: str
+    DivisionID: int
     CurDriverIncidentCount: int
     TeamIncidentCount: int
 
