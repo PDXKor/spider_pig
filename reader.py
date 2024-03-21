@@ -6,7 +6,7 @@ import time
 import logging
 import dal
 
-DB_RECREATE = False
+DB_RECREATE = True
 DEV_LOG = False
 
 if DEV_LOG:
@@ -66,6 +66,10 @@ def log_telemetry(loop_counter):
         # what we can do here is check for a change in the weekend info, but just store it once
         # we create a key that connects this telemetry this weekend info with any other info logged during the session 
         weekend_info = ir['WeekendInfo']
+
+        # if these are 0 it is a private sesssion
+        session_id = ir['WeekendInfo']['SessionID']
+        sub_session_id = ir['WeekendInfo']['SubSessionID']
         log(weekend_info)
         
         # if we haven't logged the weekend info then log it, should only need to log it once
@@ -74,6 +78,7 @@ def log_telemetry(loop_counter):
             weekend_info.pop('TelemetryOptions')
             weekend = dal.WeekendInfo(state.init_datetime, **weekend_info)
             log(weekend) 
+            
             weekend.insert()   
             state.weekend_info = weekend_info
         
@@ -84,6 +89,8 @@ def log_telemetry(loop_counter):
         # per session get session object and results position
         for s in session_info['Sessions']:
             session = dal.Session(InitDateTime = state.init_datetime,
+                            SessionId = session_id,
+                            SubSessionId = sub_session_id,
                             SessionNum=s['SessionNum'],
                             SessionLaps=s['SessionLaps'],
                             SessionTime=s['SessionTime'],
@@ -96,19 +103,27 @@ def log_telemetry(loop_counter):
                             SessionRunGroupsUsed=s['SessionRunGroupsUsed'],
                             SessionEnforceTireCompoundChange=s['SessionEnforceTireCompoundChange'])
             log(session)
+            
             # session we just want to overwrite what we have
             # we delete the current session for the current init_datetime
             # then insert new
             session.delete(state.init_datetime)
             session.insert()
-            
             dal.ResultPosition.delete(state.init_datetime)
             
-            if 'ResultsPosition' in s:
-                for r in s['ResultsPositions']:
-                    result_position = dal.ResultPosition(state.init_datetime,**r)
-                    log(result_position)
-                    result_position.insert()
+            if 'ResultsPositions' in s:
+                # sitting between sessions will cause this to be a None value
+                if s['ResultsPositions']:
+                    for r in s['ResultsPositions']:
+                        result_position = dal.ResultPosition(state.init_datetime,
+                                                            session_id,
+                                                            sub_session_id,
+                                                            s['SessionNum'],
+                                                            s['SessionType'],
+                                                            s['SessionSubType'], 
+                                                            **r)
+                        log(result_position)
+                        result_position.insert()
 
         # get info on drivers
         dal.Driver.delete(state.init_datetime)
@@ -122,42 +137,8 @@ def log_telemetry(loop_counter):
         # TODO add
         
         # get LapTiming
-        lap_timing = dal.LapTiming.set_data(d)
-        dal.LapTiming(state.init_datetime, **lap_timing).insert()
-        
-        '''
-        lap_timing = dal.LapTiming(
-            InitDateTime = state.init_datetime,
-            Lap=ir["Lap"],
-            LapBestLap=ir["LapBestLap"],
-            LapBestLapTime=ir["LapBestLapTime"],
-            LapBestNLapLap=ir["LapBestNLapLap"],
-            LapBestNLapTime=ir["LapBestNLapTime"],
-            LapCompleted=ir["LapCompleted"],
-            LapCurrentLapTime=ir["LapCurrentLapTime"],
-            LapDeltaToBestLap=ir["LapDeltaToBestLap"],
-            LapDeltaToBestLap_DD=ir["LapDeltaToBestLap_DD"],
-            LapDeltaToBestLap_OK=ir["LapDeltaToBestLap_OK"],
-            LapDeltaToOptimalLap=ir["LapDeltaToOptimalLap"],
-            LapDeltaToOptimalLap_DD=ir["LapDeltaToOptimalLap_DD"],
-            LapDeltaToOptimalLap_OK=ir["LapDeltaToOptimalLap_OK"],
-            LapDeltaToSessionBestLap=ir["LapDeltaToSessionBestLap"],
-            LapDeltaToSessionBestLap_DD=ir["LapDeltaToSessionBestLap_DD"],
-            LapDeltaToSessionBestLap_OK=ir["LapDeltaToSessionBestLap_OK"],
-            LapDeltaToSessionLastlLap=ir["LapDeltaToSessionLastlLap"],
-            LapDeltaToSessionLastlLap_DD=ir["LapDeltaToSessionLastlLap_DD"],
-            LapDeltaToSessionLastlLap_OK=ir["LapDeltaToSessionLastlLap_OK"],
-            LapDeltaToSessionOptimalLap=ir["LapDeltaToSessionOptimalLap"],
-            LapDeltaToSessionOptimalLap_DD=ir["LapDeltaToSessionOptimalLap_DD"],
-            LapDeltaToSessionOptimalLap_OK=ir["LapDeltaToSessionOptimalLap_OK"],
-            LapDist=ir["LapDist"],
-            LapDistPct=ir["LapDistPct"],
-            LapLasNLapSeq=ir["LapLasNLapSeq"],
-            LapLastLapTime=ir["LapLastLapTime"],
-            LapLastNLapTime=ir["LapLastNLapTime"]
-        )
-        lap_timing.insert()
-        '''
+        #lap_timing = dal.LapTiming.set_data(d)
+        #dal.LapTiming(state.init_datetime, **lap_timing).insert()        
         
         # get TireData
         # Manually creating an instance of Tires
@@ -205,54 +186,19 @@ def log_telemetry(loop_counter):
             RRTiresUsed=ir["RRTiresUsed"]
         )
 
-    # the main telem object for the player
-    racing_telemetry_data = dal.RacingTelemetryData(
-        InitDateTime=state.init_datetime,
-        SessionTime=t,
-        Lap=ir["Lap"],
-        LapDist=ir["LapDist"],
-        LapDistPct=ir["LapDistPct"],
-        Brake=ir["Brake"],
-        BrakeABSactive=ir["BrakeABSactive"],
-        BrakeRaw=ir["BrakeRaw"],
-        Clutch=ir["Clutch"],
-        ClutchRaw=ir["ClutchRaw"],
-        FuelLevel=ir["FuelLevel"],
-        FuelLevelPct=ir["FuelLevelPct"],
-        FuelPress=ir["FuelPress"],
-        FuelUsePerHour=ir["FuelUsePerHour"],
-        Gear=ir["Gear"],
-        HandbrakeRaw=ir["HandbrakeRaw"],
-        SteeringWheelAngle=ir["SteeringWheelAngle"],
-        SteeringWheelAngleMax=ir["SteeringWheelAngleMax"],
-        SteeringWheelLimiter=ir["SteeringWheelLimiter"],
-        SteeringWheelMaxForceNm=ir["SteeringWheelMaxForceNm"],
-        SteeringWheelPctDamper=ir["SteeringWheelPctDamper"],
-        SteeringWheelPctIntensity=ir["SteeringWheelPctIntensity"],
-        SteeringWheelPctSmoothing=ir["SteeringWheelPctSmoothing"],
-        SteeringWheelPctTorque=ir["SteeringWheelPctTorque"],
-        SteeringWheelPctTorqueSign=ir["SteeringWheelPctTorqueSign"],
-        SteeringWheelPctTorqueSignStops=ir["SteeringWheelPctTorqueSignStops"],
-        SteeringWheelPeakForceNm=ir["SteeringWheelPeakForceNm"],
-        SteeringWheelTorque=ir["SteeringWheelTorque"],
-        #SteeringWheelTorque_ST=ir["SteeringWheelTorque_ST"],
-        Throttle=ir["Throttle"],
-        ThrottleRaw=ir["ThrottleRaw"],
-        TrackTempCrew=ir["TrackTempCrew"],
-    )
-    
-    #lap_timing = dal.LapTiming.set_data(d)
-    #dal.LapTiming(state.init_datetime, **lap_timing).insert()
+    telem_fields = dal.RacingTelemetryData.fields()
+    telem_data = {}
+    #for field in telem_fields:
+        #telem_data
     race_telem = dal.RacingTelemetryData.set_data(ir)
+    print(race_telem)
     dal.LapTiming(state.init_datetime, **race_telem)
 
-    log(racing_telemetry_data)
-    #racing_telemetry_data.insert()
-    
     # check loop performance
     end_time = time.perf_counter()
     time_taken = end_time - start_time
     log(f'Main loop took: {time_taken}')
+    return time_taken
 
 if __name__ == '__main__':    
     
@@ -266,19 +212,16 @@ if __name__ == '__main__':
     
     try:
         loop_counter = 0
-        # infinite loop
         while True:
             current_time= time.strftime("%H:%M:%S")
-
             # check if we are connected to iracing
-            print(f"\rChecking for active iRacing session, last checked {current_time}", end="")
-            check_iracing()
-            
+            check_iracing()            
             # if we are, then process data
             if state.ir_connected:
-                log(f'iRacing session found, logging current session at {current_time}')
-                log_telemetry(loop_counter)
-            
+                loop_time = log_telemetry(loop_counter)
+                print(f'\r Log loop ran in {loop_time}{" "*40}', end='')
+            else:
+                print(f"\r Checking session {current_time}", end="")
             # sleep for 1 second
             # maximum you can use is 1/60
             # cause iracing updates data with 60 fps

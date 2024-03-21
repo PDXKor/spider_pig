@@ -123,6 +123,13 @@ class DCExtender:
         field_names = self.fields()
         for field in field_names:
             if field != 'InitDateTime':
+                # py IRSDK does not have the magic method __contains__
+                # this is a workaround
+                try:
+                    _ = data[key]
+                except KeyError:
+                        return False
+
                 if field not in data:
                     return_data[field] = None
                 else:
@@ -188,6 +195,11 @@ class WeekendInfo(DCExtender):
 @dataclass
 class ResultPosition(DCExtender):
     InitDateTime: str
+    SessionId: int
+    SubSessionId: int
+    SessionNum:int
+    SessionType: str
+    SessionSubType:str
     Position: int
     ClassPosition: int
     CarIdx: int
@@ -207,6 +219,8 @@ class ResultPosition(DCExtender):
 @dataclass
 class Session(DCExtender):
     InitDateTime: str
+    SessionId: int
+    SubSessionId: int
     SessionNum: int
     SessionLaps: str
     SessionTime: str
