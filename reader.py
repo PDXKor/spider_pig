@@ -137,8 +137,10 @@ def log_telemetry(loop_counter):
         # TODO add
         
         # get LapTiming
-        #lap_timing = dal.LapTiming.set_data(d)
-        #dal.LapTiming(state.init_datetime, **lap_timing).insert()        
+        #race_telem = dal.RacingTelemetryData.set_data(ir)
+        #dal.RacingTelemetryData(state.init_datetime, **race_telem).insert()
+        lap_timing = dal.LapTiming.set_data(ir)
+        dal.LapTiming(state.init_datetime, **lap_timing).insert()        
         
         # get TireData
         # Manually creating an instance of Tires
@@ -186,13 +188,9 @@ def log_telemetry(loop_counter):
             RRTiresUsed=ir["RRTiresUsed"]
         )
 
-    telem_fields = dal.RacingTelemetryData.fields()
-    telem_data = {}
-    #for field in telem_fields:
-        #telem_data
+
     race_telem = dal.RacingTelemetryData.set_data(ir)
-    print(race_telem)
-    dal.LapTiming(state.init_datetime, **race_telem)
+    dal.RacingTelemetryData(state.init_datetime, **race_telem).insert()
 
     # check loop performance
     end_time = time.perf_counter()

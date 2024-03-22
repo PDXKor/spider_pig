@@ -125,12 +125,14 @@ class DCExtender:
             if field != 'InitDateTime':
                 # py IRSDK does not have the magic method __contains__
                 # this is a workaround
+                field_in = False
                 try:
-                    _ = data[key]
+                    _ = data[field]
+                    field_in =  True
                 except KeyError:
-                        return False
-
-                if field not in data:
+                    field_in = False
+                    
+                if field_in == False:
                     return_data[field] = None
                 else:
                     return_data[field] = data[field]
