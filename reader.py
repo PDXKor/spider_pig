@@ -56,8 +56,7 @@ def log_telemetry(loop_counter):
     # time each loop to make sure we can hit <1/60th a second
     start_time = time.perf_counter()
     
-    # you need this to freeze buffer for telemetry0
-
+    # you need this to freeze buffer for telemetry
     ir.freeze_var_buffer_latest()
     t = ir['SessionTime'] 
     
@@ -66,7 +65,6 @@ def log_telemetry(loop_counter):
         # what we can do here is check for a change in the weekend info, but just store it once
         # we create a key that connects this telemetry this weekend info with any other info logged during the session 
         weekend_info = ir['WeekendInfo']
-
         # if these are 0 it is a private sesssion
         session_id = ir['WeekendInfo']['SessionID']
         sub_session_id = ir['WeekendInfo']['SubSessionID']
@@ -74,12 +72,8 @@ def log_telemetry(loop_counter):
         
         # if we haven't logged the weekend info then log it, should only need to log it once
         if not state.weekend_info:
-            weekend_info.pop('WeekendOptions')
-            weekend_info.pop('TelemetryOptions')
-            weekend = dal.WeekendInfo(state.init_datetime, **weekend_info)
-            log(weekend) 
-            
-            weekend.insert()   
+            weekend = dal.WeekendInfo.create_and_insert(state.init_datetime, weekend_info)            
+            log(weekend)   
             state.weekend_info = weekend_info
         
         # grab the session info, get new each loop.
@@ -88,21 +82,8 @@ def log_telemetry(loop_counter):
         
         # per session get session object and results position
         for s in session_info['Sessions']:
-            session = dal.Session(InitDateTime = state.init_datetime,
-                            SessionId = session_id,
-                            SubSessionId = sub_session_id,
-                            SessionNum=s['SessionNum'],
-                            SessionLaps=s['SessionLaps'],
-                            SessionTime=s['SessionTime'],
-                            SessionNumLapsToAvg=s['SessionNumLapsToAvg'],
-                            SessionType=s['SessionType'],
-                            SessionTrackRubberState=s['SessionTrackRubberState'],
-                            SessionName=s['SessionName'],
-                            SessionSubType=s['SessionSubType'],
-                            SessionSkipped=s['SessionSkipped'],
-                            SessionRunGroupsUsed=s['SessionRunGroupsUsed'],
-                            SessionEnforceTireCompoundChange=s['SessionEnforceTireCompoundChange'])
-            log(session)
+            session = dal.Session.create_and_insert(state.init_datetime,s)
+            log(session)            
             
             # session we just want to overwrite what we have
             # we delete the current session for the current init_datetime
@@ -115,82 +96,40 @@ def log_telemetry(loop_counter):
                 # sitting between sessions will cause this to be a None value
                 if s['ResultsPositions']:
                     for r in s['ResultsPositions']:
-                        result_position = dal.ResultPosition(state.init_datetime,
-                                                            session_id,
-                                                            sub_session_id,
-                                                            s['SessionNum'],
-                                                            s['SessionType'],
-                                                            s['SessionSubType'], 
-                                                            **r)
+                        save_r = {**r,  
+                                  'session_id': session_id,
+                                  'sub_session_id': sub_session_id,
+                                  'session_num': s['SessionNum'],
+                                  'session_type': s['SessionType'],
+                                  'session_subtype': s['SessionSubType']}
+                        result_position = dal.ResultPosition.create_and_insert(state.init_datetime,save_r)                       
                         log(result_position)
                         result_position.insert()
 
         # get info on drivers
         dal.Driver.delete(state.init_datetime)
         for d in ir['DriverInfo']['Drivers']:
-            driver_data = dal.Driver.set_data(d)
-            driver = dal.Driver(state.init_datetime,**driver_data)
-            driver.insert()
+            save_d = {**r,  
+                    'session_id': session_id,
+                    'sub_session_id': sub_session_id,
+                    'session_num': s['SessionNum']}
+            driver = dal.Driver.create_and_insert(state.init_datetime,save_d)
             log(driver)
         
         # get SessionWeather
         # TODO add
-        
+                            
         # get LapTiming
-        #race_telem = dal.RacingTelemetryData.set_data(ir)
-        #dal.RacingTelemetryData(state.init_datetime, **race_telem).insert()
-        lap_timing = dal.LapTiming.set_data(ir)
-        dal.LapTiming(state.init_datetime, **lap_timing).insert()        
+        #lap_timing = dal.LapTiming.set_data(ir)
+        #dal.LapTiming(state.init_datetime, **lap_timing).insert()       
         
-        # get TireData
-        # Manually creating an instance of Tires
-        tires = dal.Tires(
-            InitDateTime = state.init_datetime,
-            LFtempCL=ir["LFtempCL"],
-            LFtempCM=ir["LFtempCM"],
-            LFtempCR=ir["LFtempCR"],
-            LRtempCL=ir["LRtempCL"],
-            LRtempCM=ir["LRtempCM"],
-            LRtempCR=ir["LRtempCR"],
-            RFtempCL=ir["RFtempCL"],
-            RFtempCM=ir["RFtempCM"],
-            RFtempCR=ir["RFtempCR"],
-            RRtempCL=ir["RRtempCL"],
-            RRtempCM=ir["RRtempCM"],
-            RRtempCR=ir["RRtempCR"],
-            LFwearL=ir["LFwearL"],
-            LFwearM=ir["LFwearM"],
-            LFwearR=ir["LFwearR"],
-            LRwearL=ir["LRwearL"],
-            LRwearM=ir["LRwearM"],
-            LRwearR=ir["LRwearR"],
-            RFwearL=ir["RFwearL"],
-            RFwearM=ir["RFwearM"],
-            RFwearR=ir["RFwearR"],
-            RRwearL=ir["RRwearL"],
-            RRwearM=ir["RRwearM"],
-            RRwearR=ir["RRwearR"],
-            TireLF_RumblePitch=ir["TireLF_RumblePitch"],
-            TireLR_RumblePitch=ir["TireLR_RumblePitch"],
-            TireRF_RumblePitch=ir["TireRF_RumblePitch"],
-            TireRR_RumblePitch=ir["TireRR_RumblePitch"],
-            TireSetsAvailable=ir["TireSetsAvailable"],
-            TireSetsUsed=ir["TireSetsUsed"],
-            FrontTireSetsAvailable=ir["FrontTireSetsAvailable"],
-            FrontTireSetsUsed=ir["FrontTireSetsUsed"],
-            LeftTireSetsAvailable=ir["LeftTireSetsAvailable"],
-            LeftTireSetsUsed=ir["LeftTireSetsUsed"],
-            LFTiresAvailable=ir["LFTiresAvailable"],
-            LFTiresUsed=ir["LFTiresUsed"],
-            RFTiresAvailable=ir["RFTiresAvailable"],
-            RFTiresUsed=ir["RFTiresUsed"],
-            RRTiresAvailable=ir["RRTiresAvailable"],
-            RRTiresUsed=ir["RRTiresUsed"]
-        )
-
-
-    race_telem = dal.RacingTelemetryData.set_data(ir)
-    dal.RacingTelemetryData(state.init_datetime, **race_telem).insert()
+    # TODO add pit logic
+    #for idx, on_pit_road in enumerate(ir['CarIdxOnPitRoad']):
+        #print(idx, on_pit_road)
+    
+    # TODO add back telemetry
+    #race_telem = dal.RacingTelemetryData.set_data(ir)
+    #dal.RacingTelemetryData(state.init_datetime, **race_telem).insert()
 
     # check loop performance
     end_time = time.perf_counter()

@@ -13,8 +13,6 @@ class DCExtender:
     
     @classmethod
     def create_table_sql(self):
-        # TODO add doc string
-        # build create_table_sql
         field_strings = []
         for field in fields(self):
             field_type = field.type
@@ -35,11 +33,7 @@ class DCExtender:
     
     @classmethod
     def create_table(self, connection):
-        # TODO add doc string
-        # get create table sql
         sql = self.create_table_sql()
-        
-        # create table
         cursor = connection.cursor()
         cursor.execute(sql)
         connection.commit()
@@ -48,22 +42,16 @@ class DCExtender:
 
     @classmethod
     def insert_statement(self): 
-        # TODO add doc string               
-        # get the list of fields
         fields_list = self.get_fields(self)
         fields_str = ", ".join(fields_list)
-        
-        # get the list of values
         values = ["?" for f in fields_list]
-        values = ','.join(values)
-        
+        values = ','.join(values)        
         # create and return an insert statement with list of fields and values
         insert_statement = f'INSERT INTO {self.__name__} ({fields_str}) VALUES ({values})'
         return insert_statement      
     
     @classmethod
     def get_session_data(self, sub_session_id):
-        # TODO add doc string
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         sql = f'SELECT * FROM {self.__name__} where sub_session_id = '+str(sub_session_id)
@@ -75,7 +63,6 @@ class DCExtender:
     
     @classmethod
     def get_max_session_data(self,dict=True):
-        # TODO add doc string
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         sql = f'SELECT * FROM {self.__name__} where sub_session_id = (SELECT MAX(sub_session_id) from {self.__name__})'
@@ -94,7 +81,6 @@ class DCExtender:
     
     @classmethod
     def delete(self, init_datetime):
-        # TODO add doc string
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         sql = f'DELETE FROM {self.__name__} where InitDateTime = "{init_datetime}"'
@@ -102,7 +88,6 @@ class DCExtender:
         conn.commit()
 
     def insert(self):
-        # TODO add doc string
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         insert_sql = self.insert_statement()
@@ -110,7 +95,6 @@ class DCExtender:
         conn.commit()
           
     def unpack(self):
-        # TODO add doc string
         return tuple(getattr(self, field.name) for field in fields(self))
     
     @classmethod
@@ -120,24 +104,18 @@ class DCExtender:
     @classmethod
     def set_data(self, data):
         return_data = {}
-        field_names = self.fields()
+        field_names = self.fields()  # Presumably gets a list of field names
         for field in field_names:
             if field != 'InitDateTime':
-                # py IRSDK does not have the magic method __contains__
-                # this is a workaround
-                field_in = False
-                try:
-                    _ = data[field]
-                    field_in =  True
-                except KeyError:
-                    field_in = False
-                    
-                if field_in == False:
-                    return_data[field] = None
-                else:
-                    return_data[field] = data[field]
+                return_data[field] = data.get(field, None)
         return return_data
-        
+     
+    @classmethod
+    def create_and_insert(cls, init_datetime, data):
+        class_data = cls.set_data(data)
+        dobj = cls(init_datetime, **class_data)
+        dobj.insert()
+        return dobj         
         
 @dataclass
 class WeekendInfo(DCExtender):
@@ -243,6 +221,9 @@ class RaceData(DCExtender):
 @dataclass
 class Driver(DCExtender):
     InitDateTime: str
+    SessionId: int
+    SubSessionId: int
+    SessionNum:int
     CarIdx: int
     UserName: str
     AbbrevName: str
@@ -341,7 +322,6 @@ class LapTiming(DCExtender):
 @dataclass
 class Tires(DCExtender):
     InitDateTime: str
-    # Temperature Data
     LFtempCL: float
     LFtempCM: float
     LFtempCR: float
@@ -387,9 +367,18 @@ class Tires(DCExtender):
     RRTiresAvailable: int
     RRTiresUsed: int
 
+@dataclass
+class CarIdxPit(DCExtender):
+    InitDateTime: str
+    SessionTime: float
+    SessionId: int
+    SubSessionId: int
+    SessionNum: int
+    CarIdx = int
+    OnPitRoad = bool
+
 @dataclass    
 class RacingTelemetryData(DCExtender):
-    #lap
     InitDateTime: str
     SessionTime: float
     Lap: int
